@@ -1,6 +1,6 @@
 const CACHE_NAME = 'sgm-v1';
 const ASSETS = [
-  'home.html',
+  'index.html',
   'schede_seconda_guerra_mondiale.html',
   'quiz_carte_sgm-responsive.html',
   'guerra-icona2.png',
