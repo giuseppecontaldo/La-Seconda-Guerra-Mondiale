@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz — Seconda Guerra Mondiale</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#0f1117;--surface:#1a1d27;--border:#2e3350;
+  --accent:#4f8ef7;--accent2:#f5c542;--text:#e8eaf6;--muted:#8b93b8;
+  --correct:#22c55e;--correct-bg:#052e16;--wrong:#ef4444;--wrong-bg:#2d0a0a;
+  --skip:#f59e0b;--skip-bg:#1c1200;
+  --exp-bg:#111827;--exp-border:#2563eb;--radius:14px;--trans:.22s ease;
+  /* spacing tokens that shrink on mobile */
+  --pad:1.5rem;--gap:1rem
+}
+
+/* ── BASE ──────────────────────────────────────────────────────────────── */
+html{scroll-behavior:smooth}
+body{
+  min-height:100%;background:var(--bg);color:var(--text);
+  font-family:'Inter',sans-serif;
+}
+
+/* ── SCREENS ───────────────────────────────────────────────────────────── */
+.screen{
+  display:none;width:100%;min-height:100svh;
+  flex-direction:column;align-items:center;
+  justify-content:center;padding:var(--pad)
+}
+.screen.active{display:flex}
+
+#screen-intro,#screen-risultato{
+  justify-content:flex-start;padding-top:max(1.5rem,env(safe-area-inset-top));
+  padding-bottom:max(1.5rem,env(safe-area-inset-bottom))
+}
+#screen-quiz{justify-content:flex-start;padding-top:.5rem}
+
+/* ── INTRO ─────────────────────────────────────────────────────────────── */
+#screen-intro{
+  background:radial-gradient(ellipse at 50% 0%,#1a2a4a 0%,var(--bg) 65%);
+  gap:var(--gap);text-align:center
+}
+.intro-badge{
+  font-size:.7rem;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--accent2);background:rgba(245,197,66,.1);
+  padding:.35rem .9rem;border-radius:99px;border:1px solid rgba(245,197,66,.25);
+  margin-top:1rem
+}
+#screen-intro h1{
+  font-family:'Playfair Display',serif;
+  font-size:clamp(1.7rem,6vw,3rem);line-height:1.15;
+  background:linear-gradient(135deg,#e8eaf6 30%,#4f8ef7);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text
+}
+#screen-intro>p{font-size:clamp(.85rem,2.5vw,.95rem);color:var(--muted);max-width:500px;line-height:1.65}
+
+/* ── FORM ──────────────────────────────────────────────────────────────── */
+.form-anagrafica{
+  width:100%;max-width:500px;
+  background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  padding:clamp(1rem,4vw,1.4rem) clamp(1rem,4vw,1.6rem);
+  display:flex;flex-direction:column;gap:.85rem
+}
+.form-anagrafica h3{font-size:.72rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:.65rem}
+.form-group{display:flex;flex-direction:column;gap:.3rem}
+.form-group label{font-size:.72rem;color:var(--muted);font-weight:500;letter-spacing:.04em}
+.form-group input{
+  background:#111827;border:1.5px solid var(--border);border-radius:8px;
+  padding:.6rem .85rem;font-size:max(1rem,16px);color:var(--text);
+  font-family:'Inter',sans-serif;outline:none;
+  transition:border-color var(--trans);width:100%;
+}
+.form-group input.errore{border-color:var(--wrong)}
+.form-err{font-size:.72rem;color:var(--wrong);display:none;line-height:1.4;margin-top:0.5rem}
+.form-err.visible{display:block}
+
+.btn-start{
+  background:var(--accent);color:#fff;border:none;
+  padding:.9rem 2.4rem;border-radius:99px;
+  font-size:1rem;font-weight:600;cursor:pointer;
+  transition:background var(--trans),transform var(--trans);
+  box-shadow:0 4px 24px rgba(79,142,247,.35);
+  width:100%;max-width:320px;margin-bottom:1rem;
+}
+
+/* ── QUIZ ──────────────────────────────────────────────────────────────── */
+#screen-quiz{max-width:680px;margin:0 auto;width:100%}
+.progress-wrap{
+  width:100%;max-width:680px;
+  padding:.8rem 0 0;flex-shrink:0;
+  position:sticky;top:0;z-index:10;
+  background:var(--bg);
+  padding-bottom:.5rem;
+  border-bottom:1px solid rgba(46,51,80,.6)
+}
+.progress-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem}
+.progress-label{font-size:.75rem;color:var(--muted);font-weight:500}
+.progress-score{font-size:.75rem;color:var(--accent2);font-weight:600}
+.progress-bar{height:4px;background:var(--border);border-radius:99px;overflow:hidden;margin-bottom:.45rem}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),#7eb8ff);border-radius:99px;transition:width .4s ease}
+
+.timer-row{display:flex;align-items:center;gap:.7rem}
+.timer-bar-wrap{flex:1;height:6px;background:var(--border);border-radius:99px;overflow:hidden}
+.timer-bar{height:100%;width:100%;border-radius:99px;transition:width 1s linear,background .5s}
+.timer-label{font-size:.8rem;font-weight:700;font-variant-numeric:tabular-nums;min-width:30px;text-align:right}
+
+.card-wrap{width:100%;padding:1rem 0 3rem;display:flex;flex-direction:column;gap:.9rem}
+.card-header{display:flex;align-items:center;gap:.65rem}
+.card-num{background:var(--accent);color:#fff;font-size:.7rem;font-weight:700;padding:.22rem .55rem;border-radius:6px;letter-spacing:.05em}
+.card-tema{font-size:.7rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;font-weight:500}
+.card-question{
+  font-family:'Playfair Display',serif;
+  font-size:clamp(1rem,3.5vw,1.28rem);
+  line-height:1.5;color:var(--text)
+}
+
+.opzioni{display:flex;flex-direction:column;gap:.55rem}
+.opzione{
+  display:flex;align-items:flex-start;gap:.75rem;
+  padding:clamp(.7rem,2.5vw,.85rem) clamp(.75rem,3vw,1rem);
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:var(--radius);cursor:pointer;
+  transition:border-color var(--trans),background var(--trans);
+  text-align:left;width:100%;
+}
+.opzione.disabled{cursor:default}
+.opzione-lettera{
+  flex-shrink:0;
+  width:clamp(26px,5vw,30px);height:clamp(26px,5vw,30px);
+  border-radius:8px;background:var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:.78rem;font-weight:700;color:var(--muted);
+}
+.opzione-testo{font-size:clamp(.85rem,2.5vw,.93rem);line-height:1.5;color:var(--text);padding-top:2px}
+
+.opzione.corretta{border-color:var(--correct);background:var(--correct-bg)}
+.opzione.corretta .opzione-lettera{background:var(--correct);color:#fff}
+.opzione.sbagliata{border-color:var(--wrong);background:var(--wrong-bg)}
+.opzione.sbagliata .opzione-lettera{background:var(--wrong);color:#fff}
+.opzione.evidenziata{border-color:var(--correct);background:rgba(34,197,94,.07)}
+.opzione.evidenziata .opzione-lettera{background:var(--correct);color:#fff}
+
+.feedback{display:none;border-radius:var(--radius);overflow:hidden;animation:slideUp .3s ease}
+.feedback.visible{display:block}
+@keyframes slideUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.feedback-header{display:flex;align-items:flex-start;gap:.55rem;padding:.75rem 1rem}
+.feedback-header.ok{background:rgba(34,197,94,.15)}
+.feedback-header.err{background:rgba(239,68,68,.15)}
+.feedback-icon{font-size:1.1rem;flex-shrink:0;margin-top:1px}
+.feedback-title{font-size:clamp(.78rem,2.5vw,.85rem);font-weight:700;line-height:1.4}
+.feedback-body{background:var(--exp-bg);border:1px solid var(--exp-border);border-top:none;border-radius:0 0 var(--radius) var(--radius);padding:.9rem 1rem}
+.feedback-text{font-size:clamp(.82rem,2.5vw,.88rem);line-height:1.68;color:#93c5fd}
+
+.btn-next{
+  align-self:stretch;
+  justify-content:center;
+  background:var(--accent);color:#fff;border:none;
+  padding:.85rem 1.5rem;border-radius:var(--radius);
+  font-size:.95rem;font-weight:600;cursor:pointer;
+  display:none;align-items:center;gap:.4rem;
+}
+.btn-next.visible{display:flex}
+
+/* ── RISULTATO ─────────────────────────────────────────────────────────── */
+#screen-risultato{
+  max-width:720px;margin:0 auto;width:100%;
+  padding-top:1.5rem;gap:1.2rem;align-items:stretch
+}
+.ris-student-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:.9rem 1.2rem;
+  display:flex;justify-content:space-between;align-items:flex-start;
+  flex-wrap:wrap;gap:.5rem
+}
+.ris-student-name{font-size:1rem;font-weight:700;color:var(--text)}
+.ris-student-meta{font-size:.8rem;color:var(--muted);word-break:break-all}
+.ris-date{font-size:.75rem;color:var(--muted);font-style:italic;text-align:right}
+
+.punteggio-circle{
+  width:clamp(90px,20vw,110px);height:clamp(90px,20vw,110px);
+  border-radius:50%;margin:0 auto .8rem;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-weight:700;border:4px solid
+}
+.punteggio-circle .num{font-size:clamp(1.6rem,5vw,2rem);line-height:1}
+
+.btn-pdf{
+  display:flex;align-items:center;justify-content:center;gap:.5rem;
+  background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;border:none;
+  padding:.85rem 1.8rem;border-radius:99px;
+  font-size:.95rem;font-weight:600;cursor:pointer;
+  width:100%;max-width:300px;margin:0 auto;
+}
+
+.recap-item{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:.85rem 1rem;display:flex;flex-direction:column;gap:.42rem
+}
+.recap-item.ok-item  {border-left:3px solid var(--correct)}
+.recap-item.err-item {border-left:3px solid var(--wrong)}
+.recap-q{font-size:clamp(.8rem,2.5vw,.85rem);font-weight:600;color:var(--text);line-height:1.45}
+.recap-righe{display:flex;flex-direction:column;gap:.28rem}
+.recap-riga{display:flex;align-items:flex-start;gap:.5rem;font-size:clamp(.75rem,2.5vw,.8rem);line-height:1.4}
+.recap-riga .tag{flex-shrink:0;font-size:.62rem;font-weight:700;letter-spacing:.07em;padding:.14rem .4rem;border-radius:4px;margin-top:1px}
+.tag-ok    {background:var(--correct-bg);color:var(--correct)}
+.tag-err   {background:var(--wrong-bg);  color:var(--wrong)}
+.tag-giusta{background:var(--correct-bg);color:var(--correct)}
+.recap-exp{
+  font-size:clamp(.75rem,2.5vw,.78rem);color:#93c5fd;line-height:1.6;
+  background:var(--exp-bg);border-left:2px solid var(--exp-border);
+  padding:.45rem .65rem;border-radius:0 6px 6px 0
+}
+
+@media(max-width:480px){
+  .form-row{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ══ INTRO ══════════════════════════════════════════════════════════════ -->
+<div id="screen-intro" class="screen active">
+  <div class="intro-badge">Seconda Guerra Mondiale</div>
+  <h1>Quiz di Storia</h1>
+  <p>Hai <strong>30 secondi</strong> per ciascuna domanda. Inserisci i tuoi dati scolastici (.edu.it) e clicca per iniziare.</p>
+
+  <div class="form-anagrafica">
+    <div class="form-row">
+      <div class="form-group">
+        <label for="f-nome">Nome *</label>
+        <input id="f-nome" type="text" placeholder="Mario">
+      </div>
+      <div class="form-group">
+        <label for="f-cognome">Cognome *</label>
+        <input id="f-cognome" type="text" placeholder="Rossi">
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="f-email">Email Scolastica (.edu.it) *</label>
+      <input id="f-email" type="email" placeholder="nome.cognome@scuola.edu.it">
+    </div>
+    <div class="form-err" id="form-err">Compila tutti i campi. L'email deve terminare con .edu.it</div>
+  </div>
+
+  <button class="btn-start" onclick="avvia()">Inizia il quiz →</button>
+</div>
+
+<!-- ══ QUIZ ════════════════════════════════════════════════════════════════ -->
+<div id="screen-quiz" class="screen">
+  <div class="progress-wrap">
+    <div class="progress-top">
+      <span class="progress-label" id="prog-label">Domanda 1 di 40</span>
+      <span class="progress-score" id="prog-score">Punti: 0</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
+    <div class="timer-row">
+      <div class="timer-bar-wrap"><div class="timer-bar" id="timer-bar"></div></div>
+      <span class="timer-label ok" id="timer-label">30</span>
+    </div>
+  </div>
+
+  <div class="card-wrap">
+    <div class="card-header">
+      <span class="card-num" id="card-num">01</span>
+      <span class="card-tema" id="card-tema"></span>
+    </div>
+    <div class="card-question" id="card-question"></div>
+    <div class="opzioni" id="opzioni"></div>
+    <div class="feedback" id="feedback">
+      <div class="feedback-header" id="feedback-header">
+        <span class="feedback-icon" id="feedback-icon"></span>
+        <span class="feedback-title" id="feedback-title"></span>
+      </div>
+      <div class="feedback-body">
+        <div class="feedback-text" id="feedback-text"></div>
+      </div>
+    </div>
+    <button class="btn-next" id="btn-next"></button>
+  </div>
+</div>
+
+<!-- ══ RISULTATO ══════════════════════════════════════════════════════════ -->
+<div id="screen-risultato" class="screen">
+  <div class="ris-student-card">
+    <div>
+      <div class="ris-student-name" id="ris-nome-cognome">—</div>
+      <div class="ris-student-meta" id="ris-email">—</div>
+    </div>
+    <div class="ris-date" id="ris-data">—</div>
+  </div>
+
+  <div class="punteggio-circle" id="punteggio-circle">
+    <span class="num" id="ris-num">—</span>
+    <span id="ris-tot">/ 40</span>
+  </div>
+
+  <button class="btn-pdf" onclick="generaPDF()">
+    Scarica PDF risultati
+  </button>
+
+  <div id="recap-section" style="width:100%;display:flex;flex-direction:column;gap:.8rem;margin-top:1rem"></div>
+</div>
+
+<script>
+const CARTE_BASE=[
+  {num:"01",tema:"Le Cause",domanda:"Quale trattato del 1919 umiliò la Germania ponendo le basi per il nazismo?",opzioni:["Trattato di Parigi","Trattato di Versailles","Trattato di Utrecht","Trattato di Londra"],corretta:1,spiegazione:"Il Trattato di Versailles (1919) impose alla Germania condizioni durissime: enormi risarcimenti di guerra, cessione di territori come l'Alsazia-Lorena, riduzione dell'esercito a 100.000 uomini e la clausola della 'colpa di guerra'. I tedeschi vissero il trattato come un'umiliazione nazionale. Hitler sfruttò questa rabbia promettendo di rimettere la Germania al suo posto, conquistando il consenso popolare."},
+  {num:"02",tema:"Le Cause",domanda:"In che anno Hitler divenne Cancelliere della Germania?",opzioni:["1929","1931","1933","1935"],corretta:2,spiegazione:"Il 30 gennaio 1933 il Presidente Hindenburg nominò Hitler Cancelliere. Il Partito Nazista aveva ottenuto il 33% alle elezioni del novembre 1932. Dopo l'incendio del Reichstag, Hitler ottenne pieni poteri con la Legge dei Pieni Poteri (marzo 1933), trasformando la Germania in una dittatura."},
+  {num:"03",tema:"Le Cause",domanda:"Cosa si intende con il termine «appeasement»?",opzioni:["La politica di riarmo tedesco","La politica di cedere alle richieste di Hitler per evitare la guerra","L'accordo segreto tra Germania e URSS","Il piano economico americano per l'Europa"],corretta:1,spiegazione:"L'appeasement fue la politica di Francia e Gran Bretagna: invece di reagire alle conquiste di Hitler preferirono cedere. L'accordo di Monaco (settembre 1938) ne fue il simbolo: Chamberlain tornò a Londra annunciando 'pace per i nostri tempi'. Fu un errore fatale: Hitler capì di poter continuare indisturbato."},
+  {num:"04",tema:"Le Cause",domanda:"Con quale nazione Hitler firmò il Patto Molotov-Ribbentrop nell'agosto 1939?",opzioni:["Italia","Giappone","Unione Sovietica","Austria"],corretta:2,spiegazione:"Il 23 agosto 1939 Germania e URSS firmarono un patto di non aggressione. Un protocollo segreto spartiva l'Europa orientale: alla Germania la Polonia occidentale, all'URSS quella orientale più i Paesi Baltici. Il patto eliminò il rischio di una guerra su due fronti per Hitler, aprendo la strada all'invasione della Polonia."},
+  {num:"05",tema:"Le Cause",domanda:"Quale evento del 1° settembre 1939 diede ufficialmente inizio alla Seconda Guerra Mondiale?",opzioni:["Invasione della Francia da parte tedesca","Invasione della Polonia da parte della Germania","Attacco giapponese a Pearl Harbor","Dichiarazione di guerra dell'Italia alla Francia"],corretta:1,spiegazione:"All'alba del 1° settembre 1939, 1,5 milioni di soldati tedeschi invasero la Polonia usando la Blitzkrieg. Il 3 settembre Francia e Gran Bretagna dichiararono guerra alla Germania. Il 17 settembre anche l'URSS invase la Polonia da est. La Polonia capitolò il 6 ottobre 1939."},
+  {num:"06",tema:"Schieramenti",domanda:"Quali tre nazioni formavano il blocco delle Potenze dell'Asse?",opzioni:["Germania, Italia, Giappone","Germania, Italia, Spagna","Germania, Giappone, Ungheria","Italia, Giappone, Romania"],corretta:0,spiegazione:"Le tre Potenze dell'Asse erano: Germania nazista (Hitler), Italia fascista (Mussolini) e Giappone imperiale (Hirohito). Il nome 'Asse' derivò dall'accordo Roma-Berlino del 1936. Il Patto Tripartito fue firmato nel settembre 1940."},
+  {num:"07",tema:"Schieramenti",domanda:"Qual era il titolo con cui Hitler era conosciuto come capo assoluto della Germania?",opzioni:["Duce","Kaiser","Führer","Reichsführer"],corretta:2,spiegazione:"Führer significa 'capo' in tedesco. Hitler assunse ufficialmente il titolo di Führer und Reichskanzler dopo la morte del Presidente Hindenburg nell'agosto 1934."},
+  {num:"08",tema:"Schieramenti",domanda:"Chi era il Primo Ministro britannico che guidò la resistenza contro Hitler?",opzioni:["Neville Chamberlain","Winston Churchill","Anthony Eden","Clement Attlee"],corretta:1,spiegazione:"Winston Churchill divenne Primo Ministro il 10 maggio 1940. I suoi discorsi tennero alto il morale britannico durante i bombardamenti tedeschi. Fu uno dei principali artefici della vittoria alleata."},
+  {num:"09",tema:"Schieramenti",domanda:"In quale anno gli Stati Uniti entrarono ufficialmente nella guerra?",opzioni:["1939","1940","1941","1942"],corretta:2,spiegazione:"Gli USA entrarono in guerra il 7-8 dicembre 1941, dopo l'attacco a sorpresa giapponese alla base navale di Pearl Harbor, Hawaii."},
+  {num:"10",tema:"Schieramenti",domanda:"Chi era il presidente degli USA durante la maggior parte della Seconda Guerra Mondiale?",opzioni:["Harry Truman","Dwight Eisenhower","Franklin D. Roosevelt","Herbert Hoover"],corretta:2,spiegazione:"Franklin Delano Roosevelt fue presidente dal 1933 ed è l'unico eletto per quattro mandati. Guidò gli USA dall'entrata in guerra fino alla sua morte il 12 aprile 1945."},
+  {num:"11",tema:"Personaggi",domanda:"Chi era Benito Mussolini e come fue la sua fine?",opzioni:["Il Cancelliere della Germania, morto in battaglia","Il Duce del fascismo italiano, fucilato dai partigiani","Il generale dell'esercito italiano, arrestato dagli Alleati","Il Re d'Italia, esiliato in Portogallo"],corretta:1,spiegazione:"Benito Mussolini fondò il Partito Fascista nel 1919 e divenne dittatore d'Italia dal 1922. Fu fucilato dai partigiani il 28 aprile 1945 a Dongo."},
+  {num:"12",tema:"Personaggi",domanda:"Come veniva soprannominato il generale tedesco Erwin Rommel?",opzioni:["L'Aquila del Nord","La Volpe del Deserto","Il Leone di Berlino","Il Falco d'Africa"],corretta:1,spiegazione:"Rommel fue soprannominato 'La Volpe del Deserto' per le sue straordinarie capacità tattiche nella campagna del Nord Africa (1941-43)."},
+  {num:"13",tema:"Personaggi",domanda:"Qual era il ruolo ufficiale di Stalin nell'Unione Sovietica?",opzioni:["Presidente della Repubblica Sovietica","Zar dell'URSS","Segretario Generale del Partito Comunista","Comandante supremo dell'Armata Rossa"],corretta:2,spiegazione:"Iosif Stalin era Segretario Generale del Partito Comunista dell'URSS, carica che di fatto lo rendeva il dittatore assoluto."},
+  {num:"14",tema:"Personaggi",domanda:"Dove morì Adolf Hitler il 30 aprile 1945?",opzioni:["A Monaco di Baviera","Nel suo bunker sotto la Cancelleria di Berlino","A Norimberga","Nel castello di Berchtesgaden sulle Alpi"],corretta:1,spiegazione:"Il 30 aprile 1945, con Berlino circondata dall'Armata Rossa, Hitler si suicidò nel Führerbunker sotto la Cancelleria del Reich."},
+  {num:"15",tema:"Personaggi",domanda:"Chi ordinò il lancio delle bombe atomiche su Hiroshima e Nagasaki?",opzioni:["Dwight Eisenhower","George Marshall","Harry Truman","Douglas MacArthur"],corretta:2,spiegazione:"Harry Truman, diventato presidente dopo la morte di Roosevelt (aprile 1945), autorizzò l'uso delle bombe atomiche per porre fine alla guerra con il Giappone."},
+  {num:"16",tema:"La Guerra",domanda:"Cosa significa il termine tedesco «Blitzkrieg»?",opzioni:["Grande offensiva corazzata","Guerra totale","Guerra lampo","Forza d'urto"],corretta:2,spiegazione:"Blitzkrieg significa letteralmente 'guerra lampo'. Era una tattica che combinava carri armati, aviazione e fanteria motorizzata in attacchi coordinati."},
+  {num:"17",tema:"La Guerra",domanda:"Come si chiama la battaglia aerea del 1940 in cui la RAF resistette alla Germania?",opzioni:["Battaglia del Pacifico","Battaglia di El Alamein","Battaglia d'Inghilterra","Battaglia di Berlino"],corretta:2,spiegazione:"La Battaglia d'Inghilterra (1940) fue il primo grande conflitto combattuto interamente in aria. La RAF resistette grazie ai caccia Spitfire e Hurricane e al radar."},
+  {num:"18",tema:"La Guerra",domanda:"Come si chiamò l'invasione tedesca dell'Unione Sovietica del 22 giugno 1941?",opzioni:["Operazione Barbarossa","Operazione Dynamo","Operazione Overlord","Operazione Citadelle"],corretta:0,spiegazione:"L'Operazione Barbarossa fue lanciata il 22 giugno 1941: fue la più grande operazione militare della storia. Si fermò alle porte di Mosca nell'inverno 1941."},
+  {num:"19",tema:"La Guerra",domanda:"Quale base militare americana fue attaccata a sorpresa dal Giappone il 7 dicembre 1941?",opzioni:["Guam","Midway","Pearl Harbor","Wake Island"],corretta:2,spiegazione:"L'attacco a sorpresa a Pearl Harbor (Hawaii) spinse gli Stati Uniti a entrare ufficialmente nel conflitto mondiale."},
+  {num:"20",tema:"La Guerra",domanda:"Qual era l'obiettivo principale dell'Operazione Barbarossa?",opzioni:["Conquistare la Gran Bretagna","Invadere e distruggere l'Unione Sovietica","Occupare il Nord Africa","Conquistare i Balcani"],corretta:1,spiegazione:"L'obiettivo era il 'Lebensraum' (spazio vitale) a est, distruggendo l'Armata Rossa e conquistando risorse strategiche come grano e petrolio."},
+  {num:"21",tema:"Le Svolte",domanda:"Quale battaglia navale del 1942 segnò la fine dell'espansione giapponese nel Pacifico?",opzioni:["Battaglia di Guadalcanal","Battaglia di Midway","Battaglia di Iwo Jima","Battaglia di Okinawa"],corretta:1,spiegazione:"A Midway (giugno 1942) la marina americana affondò 4 portaerei giapponesi, segnando la svolta decisiva nel teatro del Pacifico."},
+  {num:"22",tema:"Le Svolte",domanda:"Dove fermarono gli inglesi l'avanzata italo-tedesca in Nord Africa nel 1942?",opzioni:["Tobruk","Tripoli","El Alamein","Bengasi"],corretta:2,spiegazione:"A El Alamein (ottobre-novembre 1942) le truppe britanniche di Montgomery sconfissero definitivamente l'Afrikakorps di Rommel."},
+  {num:"23",tema:"Le Svolte",domanda:"La battaglia di Stalingrado si concluse con la resa tedesca nel:",opzioni:["Settembre 1942","Novembre 1942","Febbraio 1943","Giugno 1943"],corretta:2,spiegazione:"La resa della 6ª Armata tedesca a Stalingrado (febbraio 1943) segnò l'inizio del definitivo ripiegamento tedesco sul fronte orientale."},
+  {num:"24",tema:"Le Svolte",domanda:"Come si chiama lo sbarco alleato in Normandia del 6 giugno 1944?",opzioni:["Operazione Barbarossa","Operazione Market Garden","D-Day / Operazione Overlord","Operazione Torch"],corretta:2,spiegazione:"L'Operazione Overlord fue la più grande operazione anfibia della storia, aprendo il secondo fronte in Europa occidentale."},
+  {num:"25",tema:"Le Svolte",domanda:"Quale nazione subì le perdite umane più elevate durante la Seconda Guerra Mondiale?",opzioni:["Germania","Polonia","Unione Sovietica","Cina"],corretta:2,spiegazione:"L'Unione Sovietica perse circa 27 milioni di persone tra militari e civili, pagando il prezzo più alto di tutto il conflitto."},
+  {num:"26",tema:"L'Italia",domanda:"In quale data l'Italia di Mussolini entrò ufficialmente in guerra?",opzioni:["1 settembre 1939","10 giugno 1940","8 settembre 1943","25 aprile 1945"],corretta:1,spiegazione:"Mussolini dichiarò guerra a Francia e Gran Bretagna il 10 giugno 1940, convinto di una rapida vittoria tedesca."},
+  {num:"27",tema:"L'Italia",domanda:"Dove sbarcarono gli Alleati per iniziare la campagna d'Italia nel luglio 1943?",opzioni:["Calabria","Sardegna","Sicilia","Campania"],corretta:2,spiegazione:"L'Operazione Husky (luglio 1943) portò alla conquista della Sicilia e accelerò la caduta del regime fascista."},
+  {num:"28",tema:"L'Italia",domanda:"In quale data Mussolini fue arrestato e il fascismo cadde ufficialmente?",opzioni:["8 settembre 1943","10 luglio 1943","25 luglio 1943","4 giugno 1944"],corretta:2,spiegazione:"Dopo il voto del Gran Consiglio del Fascismo, il Re Vittorio Emanuele III fece arrestare Mussolini il 25 luglio 1943."},
+  {num:"29",tema:"L'Italia",domanda:"Cosa accadde l'8 settembre 1943 in Italia?",opzioni:["L'Italia dichiarò guerra alla Germania","Fu annunciato l'armistizio con gli Alleati","Gli Alleati sbarcarono in Sicilia","I partigiani insorsero al nord"],corretta:1,spiegazione:"L'annuncio dell'armistizio gettò l'esercito nel caos e portò all'occupazione tedesca dell'Italia centro-settentrionale."},
+  {num:"30",tema:"L'Italia",domanda:"Dove fue catturato e fucilato Mussolini il 28 aprile 1945?",opzioni:["A Milano, in Piazza Loreto","A Dongo, sul Lago di Como","A Torino, vicino alle Alpi","A Roma, in Piazza Venezia"],corretta:1,spiegazione:"Mussolini fue catturato dai partigiani mentre tentava di fuggire in Svizzera e fue giustiziato a Dongo il 28 aprile 1945."},
+  {num:"31",tema:"L'Italia",domanda:"Cosa celebra la Festa della Liberazione del 25 aprile?",opzioni:["La fine della Prima Guerra Mondiale","L'entrata in guerra dell'Italia nel 1940","La liberazione dell'Italia dal nazifascismo nel 1945","La nascita della Repubblica Italiana nel 1946"],corretta:2,spiegazione:"Il 25 aprile 1945 segna l'insurrezione generale del CLN e la liberazione delle principali città del Nord Italia."},
+  {num:"32",tema:"La Shoah",domanda:"Cosa significa la parola ebraica «Shoah»?",opzioni:["Resistenza","Catastrofe","Esilio","Memoria"],corretta:1,spiegazione:"Il termine Shoah indica la catastrofe del genocidio sistematico di 6 milioni di ebrei pianificato dalla Germania nazista."},
+  {num:"33",tema:"La Shoah",domanda:"Quanti ebrei furono uccisi nella Shoah?",opzioni:["Circa 2 milioni","Circa 4 milioni","Circa 6 milioni","Circa 10 milioni"],corretta:2,spiegazione:"Si stima che circa 6 milioni di ebrei, pari ai due terzi della popolazione ebraica europea dell'epoca, siano stati sterminati."},
+  {num:"34",tema:"La Shoah",domanda:"Cosa stabilirono le Leggi di Norimberga del 1935?",opzioni:["Il programma di riarmo tedesco","La privazione della cittadinanza agli ebrei tedeschi","La creazione dei campi di concentramento","L'alleanza tra Germania e Italia"],corretta:1,spiegazione:"Le leggi del 1935 privarono gli ebrei della cittadinanza e proibirono i matrimoni misti, istituzionalizzando l'antisemitismo."},
+  {num:"35",tema:"La Shoah",domanda:"Come si chiama la notte del 9-10 novembre 1938 in cui i nazisti devastarono le comunità ebraiche?",opzioni:["Notte dei Lunghi Coltelli","Notte di Fuoco","Notte dei Cristalli","Notte di Varsavia"],corretta:2,spiegazione:"La Kristallnacht fue un violento pogrom di Stato che segnò il passaggio alla persecuzione fisica sistematica."},
+  {num:"36",tema:"La Shoah",domanda:"In quale conferenza del gennaio 1942 i nazisti pianificarono la «Soluzione Finale»?",opzioni:["Conferenza di Monaco","Conferenza di Potsdam","Conferenza di Yalta","Conferenza di Wannsee"],corretta:3,spiegazione:"A Wannsee (Berlino) i gerarchi nazisti pianificarono i dettagli tecnici per lo sterminio degli ebrei nei campi di sterminio."},
+  {num:"37",tema:"La Shoah",domanda:"Il Giorno della Memoria si celebra il 27 gennaio. Perché quella data?",opzioni:["È il giorno della firma del Trattato di pace del 1945","È il giorno in cui l'Armata Rossa liberò il campo di Auschwitz nel 1945","È il compleanno di Anna Frank","È il giorno della fine ufficiale della guerra"],corretta:1,spiegazione:"Il 27 gennaio 1945 le truppe sovietiche entrarono ad Auschwitz, svelando al mondo l'orrore dello sterminio nazista."},
+  {num:"38",tema:"La Fine",domanda:"Su quale città giapponese fue sganciata la prima bomba atomica il 6 agosto 1945?",opzioni:["Tokyo","Nagasaki","Osaka","Hiroshima"],corretta:3,spiegazione:"Hiroshima fue colpita il 6 agosto 1945; Nagasaki seguì il 9 agosto. Il Giappone si arrese ufficialmente il 2 settembre."},
+  {num:"39",tema:"La Fine",domanda:"Quale organizzazione internazionale fue fondata nel 1945 per mantenere la pace mondiale?",opzioni:["NATO","ONU (Organizzazione delle Nazioni Unite)","Unione Europea","Lega delle Nazioni"],corretta:1,spiegazione:"L'ONU fue fondata nel giugno 1945 con l'obiettivo di prevenire futuri conflitti e promuovere i diritti umani."},
+  {num:"40",tema:"La Fine",domanda:"Con il referendum del 2 giugno 1946 gli italiani scelsero:",opzioni:["Il ritorno alla monarchia dei Savoia","Una federazione con la Francia","La Repubblica al posto della Monarchia","Un governo militare provvisorio"],corretta:2,spiegazione:"Gli italiani votarono a favore della Repubblica, portando all'esilio dei Savoia e alla nascita della nuova Costituzione."}
+];
+
+const shuffle=a=>{const b=[...a];for(let i=b.length-1;i>0;i--){const j=0|Math.random()*(i+1);[b[i],b[j]]=[b[j],b[i]];}return b;};
+const mescolaOpzioni=c=>{const p=c.opzioni.map((t,i)=>({t,ok:i===c.corretta}));const s=shuffle(p);return{...c,opzioni:s.map(x=>x.t),corretta:s.findIndex(x=>x.ok)};};
+const mostraSchermo=id=>{document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');};
+const fmt=d=>d.toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
+const DOMINIO='.edu.it';
+const TIMER_SEC=30;
+let carte=[],idx=0,punteggio=0,risposte=[],timerInterval=null,timerLeft=0;
+let studente={nome:'',cognome:'',email:''};
+let startTime = 0;
+
+function avvia(){
+  const nome = document.getElementById('f-nome').value.trim();
+  const cognome = document.getElementById('f-cognome').value.trim();
+  const email = document.getElementById('f-email').value.trim().toLowerCase();
+  const err = document.getElementById('form-err');
+
+  const inputs = [document.getElementById('f-nome'), document.getElementById('f-cognome'), document.getElementById('f-email')];
+  inputs.forEach(i => i.classList.remove('errore'));
+
+  if(!nome || !cognome || !email.endsWith(DOMINIO)) {
+    if(!nome) document.getElementById('f-nome').classList.add('errore');
+    if(!cognome) document.getElementById('f-cognome').classList.add('errore');
+    if(!email.endsWith(DOMINIO)) document.getElementById('f-email').classList.add('errore');
+    err.classList.add('visible');
+    return;
+  }
+
+  err.classList.remove('visible');
+  studente = {nome, cognome, email};
+
+  startTime = Date.now();
+  carte=shuffle(CARTE_BASE).map(mescolaOpzioni);
+  idx=0;punteggio=0;risposte=[];
+  mostraSchermo('screen-quiz');
+  renderCarta();
+}
+
+function avviaTimer(){
+  stopTimer();
+  timerLeft=TIMER_SEC;
+  aggiornaTimer();
+  timerInterval=setInterval(()=>{
+    timerLeft--;
+    aggiornaTimer();
+    if(timerLeft<=0){stopTimer();saltaDomanda();}
+  },1000);
+}
+function stopTimer(){clearInterval(timerInterval);timerInterval=null;}
+function aggiornaTimer(){
+  const bar=document.getElementById('timer-bar');
+  const lbl=document.getElementById('timer-label');
+  const perc=(timerLeft/TIMER_SEC)*100;
+  bar.style.width=perc+'%';
+  bar.style.background=timerLeft>10?'#22c55e':timerLeft>5?'#f59e0b':'#ef4444';
+  lbl.textContent=timerLeft;
+}
+
+function renderCarta(){
+  const c=carte[idx],tot=carte.length;
+  document.getElementById('prog-label').textContent='Domanda '+(idx+1)+' di '+tot;
+  document.getElementById('prog-score').textContent='Punti: '+punteggio;
+  document.getElementById('prog-fill').style.width=(idx/tot*100)+'%';
+  document.getElementById('card-num').textContent=String(idx+1).padStart(2,'0');
+  document.getElementById('card-tema').textContent=c.tema;
+  document.getElementById('card-question').textContent=c.domanda;
+  const L=['A','B','C','D'];
+  const od=document.getElementById('opzioni');
+  od.innerHTML='';
+  c.opzioni.forEach((op,i)=>{
+    const btn=document.createElement('button');
+    btn.className='opzione';
+    btn.innerHTML='<span class="opzione-lettera">'+L[i]+'</span><span class="opzione-testo">'+op+'</span>';
+    btn.addEventListener('click',()=>rispondi(i));
+    od.appendChild(btn);
+  });
+  document.getElementById('feedback').classList.remove('visible');
+  const bn=document.getElementById('btn-next');
+  bn.classList.remove('visible');
+  const isUlt=idx===carte.length-1;
+  bn.innerHTML=(isUlt?'Vedi risultati':'Prossima domanda');
+  bn.onclick=isUlt?mostraRisultato:prossimaDomanda;
+  window.scrollTo({top:0,behavior:'smooth'});
+  avviaTimer();
+}
+
+function rispondi(scelta){
+  stopTimer();
+  const c=carte[idx],ok=scelta===c.corretta;
+  document.querySelectorAll('.opzione').forEach(o=>{o.classList.add('disabled');o.onclick=null;});
+  document.querySelectorAll('.opzione')[scelta].classList.add(ok?'corretta':'sbagliata');
+  if(!ok) document.querySelectorAll('.opzione')[c.corretta].classList.add('evidenziata');
+  const fh=document.getElementById('feedback-header');
+  fh.className='feedback-header '+(ok?'ok':'err');
+  document.getElementById('feedback-icon').textContent=ok?'✓':'✗';
+  document.getElementById('feedback-title').textContent=ok?'Risposta esatta!':'Risposta errata';
+  document.getElementById('feedback-text').textContent=c.spiegazione;
+  document.getElementById('feedback').classList.add('visible');
+  document.getElementById('btn-next').classList.add('visible');
+  if(ok) punteggio++;
+  risposte.push({carta:c,scelta,corretta:ok,saltata:false});
+}
+
+function saltaDomanda(){
+  const c=carte[idx];
+  document.querySelectorAll('.opzione').forEach(o=>{o.classList.add('disabled');o.onclick=null;});
+  document.querySelectorAll('.opzione')[c.corretta].classList.add('evidenziata');
+  document.getElementById('feedback-header').className='feedback-header err';
+  document.getElementById('feedback-icon').textContent='⏱';
+  document.getElementById('feedback-title').textContent='Tempo scaduto!';
+  document.getElementById('feedback-text').textContent=c.spiegazione;
+  document.getElementById('feedback').classList.add('visible');
+  document.getElementById('btn-next').classList.add('visible');
+  risposte.push({carta:c,scelta:null,corretta:false,saltata:true});
+}
+
+function prossimaDomanda(){idx++;renderCarta();}
+
+function mostraRisultato(){
+  stopTimer();
+  mostraSchermo('screen-risultato');
+  document.getElementById('ris-nome-cognome').textContent=studente.nome+' '+studente.cognome;
+  document.getElementById('ris-email').textContent=studente.email;
+  document.getElementById('ris-data').textContent=fmt(new Date());
+  document.getElementById('ris-num').textContent=punteggio;
+
+  const sec=document.getElementById('recap-section');
+  sec.innerHTML='';
+  risposte.forEach((r,i)=>{
+    const c=r.carta;
+    const item=document.createElement('div');
+    item.className='recap-item '+(r.corretta?'ok-item':'err-item');
+    let righeHtml=r.corretta?`<div class="recap-riga"><span class="tag tag-ok">ESATTA</span><span>${c.opzioni[r.scelta]}</span></div>`
+                            : `<div class="recap-riga"><span class="tag tag-err">TUA</span><span>${r.saltata?'Tempo scaduto':c.opzioni[r.scelta]}</span></div>
+                               <div class="recap-riga"><span class="tag tag-giusta">GIUSTA</span><span>${c.opzioni[c.corretta]}</span></div>`;
+    item.innerHTML=`<div class="recap-q">${i+1}. ${c.domanda}</div><div class="recap-righe">${righeHtml}</div>
+                    ${!r.corretta?'<div class="recap-exp">'+c.spiegazione+'</div>':''}`;
+    sec.appendChild(item);
+  });
+}
+
+function generaPDF(){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const duration = Math.round((Date.now() - startTime) / 1000);
+  const min = Math.floor(duration / 60);
+  const sec = duration % 60;
+  const timeStr = (min > 0 ? min + 'm ' : '') + sec + 's';
+  const perc = Math.round((punteggio / carte.length) * 100);
+
+  doc.setFontSize(18); doc.text('RISULTATO QUIZ - SECONDA GUERRA MONDIALE', 105, 15, {align:'center'});
+  doc.setFontSize(12);
+  doc.text(`Studente: ${studente.nome} ${studente.cognome}`, 20, 25);
+  doc.text(`Email: ${studente.email}`, 20, 31);
+  doc.text(`Data: ${fmt(new Date())}`, 20, 37);
+  doc.text(`Tempo impiegato: ${timeStr}`, 20, 43);
+  doc.text(`Punteggio: ${punteggio} / ${carte.length} (${perc}%)`, 20, 49);
+
+  let y = 60;
+  risposte.forEach((r, i) => {
+    if (y > 270) { doc.addPage(); y = 20; }
+    doc.setFont('helvetica', 'bold');
+    const qLines = doc.splitTextToSize(`${i+1}. ${r.carta.domanda}`, 170);
+    doc.text(qLines, 20, y);
+    y += (qLines.length * 6);
+
+    doc.setFont('helvetica', 'normal');
+    if (r.corretta) {
+      doc.setTextColor(34, 197, 94);
+      doc.text(`Risposta Esatta: ${r.carta.opzioni[r.scelta]}`, 25, y);
+      y += 7;
+    } else {
+      doc.setTextColor(239, 68, 68);
+      doc.text(`Tua Risposta: ${r.saltata ? 'Tempo scaduto' : r.carta.opzioni[r.scelta]}`, 25, y);
+      y += 6;
+      doc.setTextColor(34, 197, 94);
+      doc.text(`Risposta Corretta: ${r.carta.opzioni[r.carta.corretta]}`, 25, y);
+      y += 7;
+      doc.setTextColor(0, 0, 0);
+      const expLines = doc.splitTextToSize(`Spiegazione: ${r.carta.spiegazione}`, 160);
+      doc.text(expLines, 25, y);
+      y += (expLines.length * 5) + 2;
+    }
+    doc.setTextColor(0, 0, 0);
+    y += 2;
+  });
+
+  const pdfBase64 = doc.output('datauristring');
+  const fileName = `Risultato_SGM_${studente.cognome}_${studente.nome}.pdf`;
+  if (window.AndroidInterface) window.AndroidInterface.savePdf(pdfBase64, fileName);
+  else doc.save(fileName);
+}
+</script>
+</body>
+</html>
